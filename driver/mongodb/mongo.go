@@ -6,15 +6,22 @@ import (
 	"mongo-fundamential/common/log"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-// mongo -u root -p Anh123###!123 15.235.185.218:27017/besanh
 type (
 	IMongoClient interface {
 		GetClient() *mongo.Client
+		GetCollection() *mongo.Collection
+		Close() error
+		InsertOne(data any) (result *mongo.InsertOneResult, err error)
+		InsertMany(data []any) (result *mongo.InsertManyResult, err error)
+		FindOne(projection bson.D, data any) (result *mongo.Cursor, err error)
+		UpdateOne(filter, data any) (result *mongo.UpdateResult, err error)
+		UpdateMany(filter, data []any) (result *mongo.UpdateResult, err error)
 	}
 
 	MongoConfg struct {
@@ -45,7 +52,7 @@ func NewMongoClient(config MongoConfg) (IMongoClient, error) {
 func (m *mongoClient) Connect() (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(fmt.Sprintf("%s:%d/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.2.6", m.config.Host, m.config.Port)))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(fmt.Sprintf("%s:%d", m.config.Host, m.config.Port)))
 	if err != nil {
 		log.Error(err)
 		return
@@ -61,4 +68,83 @@ func (m *mongoClient) Connect() (err error) {
 
 func (m *mongoClient) GetClient() *mongo.Client {
 	return m.client
+}
+
+func (m *mongoClient) GetCollection() *mongo.Collection {
+	return m.client.Database(m.config.Database).Collection(m.config.Database)
+}
+
+func (m *mongoClient) Close() error {
+	if err := m.client.Disconnect(context.TODO()); err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+
+func (m *mongoClient) InsertOne(data any) (result *mongo.InsertOneResult, err error) {
+	result, err = m.GetCollection().InsertOne(context.TODO(), data)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (m *mongoClient) InsertMany(data []any) (result *mongo.InsertManyResult, err error) {
+	result, err = m.GetCollection().InsertMany(context.TODO(), data)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+// To get inserted documents, use data nil
+func (m *mongoClient) FindOne(projection bson.D, data any) (result *mongo.Cursor, err error) {
+	if projection != nil {
+		result, err = m.GetCollection().Find(context.TODO(), data, options.Find().SetProjection(projection))
+	} else {
+		result, err = m.GetCollection().Find(context.TODO(), data)
+	}
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (m *mongoClient) UpdateOne(filter, data any) (result *mongo.UpdateResult, err error) {
+	result, err = m.GetCollection().UpdateOne(context.TODO(), filter, data)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (m *mongoClient) UpdateMany(filter, data []any) (result *mongo.UpdateResult, err error) {
+	result, err = m.GetCollection().UpdateMany(context.TODO(), filter, data)
+	if err != nil {
+		return
+	}
+	return
+}
+
+/**
+* Delete at most a single document that match a specified filter even though multiple documents may match the specified filter.
+ */
+func (m *mongoClient) DeleteOne(filter any) (result *mongo.DeleteResult, err error) {
+	result, err = m.GetCollection().DeleteOne(context.TODO(), filter)
+	if err != nil {
+		return
+	}
+	return
+}
+
+// Delete all documents that match a specified filter.
+func (m *mongoClient) DeleteMany(filter any) (result *mongo.DeleteResult, err error) {
+	result, err = m.GetCollection().DeleteMany(context.TODO(), filter)
+	if err != nil {
+		return
+	}
+	return
 }

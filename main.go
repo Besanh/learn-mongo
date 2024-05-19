@@ -68,7 +68,6 @@ func init() {
 }
 
 func main() {
-	fmt.Println("ok")
 	server := api.NewServer()
 	server.Start(config.Port)
 }
